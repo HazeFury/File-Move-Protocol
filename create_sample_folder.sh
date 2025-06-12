@@ -17,7 +17,9 @@ if [ -d "$TARGET_DIR" ]; then
 else
   echo "Création du dossier : $TARGET_DIR"
   mkdir -p "$TARGET_DIR"
+  echo "Création du dossier : $TARGET_DIR/ATTENTES_SIGNATURE"
   mkdir -p "$TARGET_DIR/ATTENTES_SIGNATURE"
+  echo "Création du dossier : $TARGET_DIR/TRAITES"
   mkdir -p "$TARGET_DIR/TRAITES"
   
   for file in "${FAKE_FILES[@]}"; do
@@ -25,6 +27,6 @@ else
     prefix="${file:0:5}"
     mkdir -p "$TARGET_DIR/TRAITES/$prefix"
   done
-
+  echo "Remplissage des dossiers..."
   echo "Dossiers créés avec succès ✅"
 fi
