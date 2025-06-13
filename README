@@ -1,0 +1,4 @@
+Pour compiler sur linux :
+
+``fltk-config --compile main.cxx``
+
