@@ -22,7 +22,7 @@ ifeq ($(OS), Windows_NT)
     LIB_DIR = $(FLTK_BUILD)/lib
 
     CXXFLAGS = -I$(FLTK_DIR) -I$(FLTK_DIR)/FL -I$(FLTK_BUILD)
-    LDFLAGS = -L$(LIB_DIR) -lfltk -lole32 -luuid -lcomctl32 -lws2_32 -lgdiplus -lwinspool -mwindows
+    LDFLAGS = -L$(LIB_DIR) -lfltk -lole32 -luuid -lcomctl32 -lws2_32 -lgdiplus -lwinspool -mwindows -static-libgcc -static-libstdc++
     EXT = .exe
 endif
 endif
