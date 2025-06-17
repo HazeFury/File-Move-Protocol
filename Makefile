@@ -6,6 +6,9 @@ TARGET = FMP
 # Fichier source
 SRC = main.cxx
 
+# Dossier de build
+BUILD_DIR = build
+
 # Compilateur
 CXX = g++
 
@@ -22,19 +25,23 @@ ifeq ($(OS), Windows_NT)
     LIB_DIR = $(FLTK_BUILD)/lib
 
     CXXFLAGS = -I$(FLTK_DIR) -I$(FLTK_DIR)/FL -I$(FLTK_BUILD)
-    LDFLAGS = -L$(LIB_DIR) -lfltk -lole32 -luuid -lcomctl32 -lws2_32 -lgdiplus -lwinspool -mwindows -static-libgcc -static-libstdc++
+    LDFLAGS = -static -L$(LIB_DIR) -lfltk -lole32 -luuid -lcomctl32 -lws2_32 -lgdiplus -lwinspool -mwindows -static-libgcc -static-libstdc++
     EXT = .exe
 endif
 endif
 
 # Cible principale
-all:
-	$(CXX) $(SRC) -o $(TARGET)$(EXT) $(CXXFLAGS) $(LDFLAGS)
+all: $(BUILD_DIR)
+	$(CXX) $(SRC) -o $(BUILD_DIR)/$(TARGET)$(EXT) $(CXXFLAGS) $(LDFLAGS)
+
+# Création du dossier de build s'il n'existe pas
+$(BUILD_DIR):
+	mkdir $(BUILD_DIR)
 
 # Nettoyage
 clean:
 ifeq ($(OS), Windows_NT)
-	del /Q $(TARGET)$(EXT) 2>nul || exit 0
+	del /Q $(BUILD_DIR)\$(TARGET)$(EXT) 2>nul || exit 0
 else
-	rm -f $(TARGET)$(EXT)
+	rm -f $(BUILD_DIR)/$(TARGET)$(EXT)
 endif
