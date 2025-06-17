@@ -4,7 +4,8 @@
 TARGET = FMP
 
 # Fichier source
-SRC = main.cxx
+SRC = $(wildcard src/*.cxx src/*.cpp src/core/*.c)
+
 
 # Dossier de build
 BUILD_DIR = build
