@@ -1,70 +1,91 @@
+// src/core/file_move.c
+
+#include "file_move.h"
+#include "file_scan.h" // pour is_valid_filename
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <windows.h>   // Pour WIN32_FIND_DATA, FindFirstFile, etc.
-#include <direct.h>    // Pour _mkdir
-#include "file_move.h"
+#include <ctype.h>
+#include <windows.h>
 
-// Fonction pour tester si une chaîne commence par 5 chiffres
-int starts_with_5_digits(const char* name) {
-    for (int i = 0; i < 5; ++i) {
-        if (name[i] < '0' || name[i] > '9') return 0;
-    }
-    return 1;
+int starts_with(const char* str, const char* prefix) {
+    return strncmp(str, prefix, strlen(prefix)) == 0;
 }
 
-void move_files(const char* source_dir, const char* dest_dir) {
+void move_files(const char* source_dir, const char* dest_dir, int* moved_count, int* ignored_count) {
+    *moved_count = 0;
+    *ignored_count = 0;
+
+    WIN32_FIND_DATA findFileData;
     char search_path[MAX_PATH];
     snprintf(search_path, MAX_PATH, "%s\\*", source_dir);
 
-    WIN32_FIND_DATA find_data;
-    HANDLE hFind = FindFirstFile(search_path, &find_data);
+    HANDLE hFind = FindFirstFile(search_path, &findFileData);
     if (hFind == INVALID_HANDLE_VALUE) {
-        printf("Erreur: impossible de lister les fichiers.\n");
+        printf("Erreur : impossible d'ouvrir le dossier source\n");
         return;
     }
 
     do {
-        // Ignorer les dossiers spéciaux "." et ".."
-        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            continue;
+        if (!(findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+            const char* filename = findFileData.cFileName;
+
+            if (!is_valid_filename(filename)) continue;
+
+            // Récupère les 5 premiers chiffres
+            char service_num[6] = {0};
+            strncpy(service_num, filename, 5);
+
+            // Chercher un dossier existant qui commence par les 5 chiffres
+            char matching_folder[MAX_PATH] = {0};
+            int found = 0;
+
+            WIN32_FIND_DATA dirData;
+            char dest_search_path[MAX_PATH];
+            snprintf(dest_search_path, MAX_PATH, "%s\\*", dest_dir);
+            HANDLE hDir = FindFirstFile(dest_search_path, &dirData);
+
+            if (hDir != INVALID_HANDLE_VALUE) {
+                do {
+                    if ((dirData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+                        strcmp(dirData.cFileName, ".") != 0 &&
+                        strcmp(dirData.cFileName, "..") != 0) {
+                        if (starts_with(dirData.cFileName, service_num)) {
+                            snprintf(matching_folder, MAX_PATH, "%s\\%s", dest_dir, dirData.cFileName);
+                            found = 1;
+                            break;
+                        }
+                    }
+                } while (FindNextFile(hDir, &dirData));
+                FindClose(hDir);
+            }
+
+            if (!found) {
+                snprintf(matching_folder, MAX_PATH, "%s\\%s", dest_dir, service_num);
+                CreateDirectory(matching_folder, NULL); // Création si nécessaire
+            }
+
+            // Construire les chemins complet source -> destination
+            char src_path[MAX_PATH];
+            char dest_path[MAX_PATH];
+            snprintf(src_path, MAX_PATH, "%s\\%s", source_dir, filename);
+            snprintf(dest_path, MAX_PATH, "%s\\%s", matching_folder, filename);
+
+            // Vérifier s’il existe déjà
+            DWORD attr = GetFileAttributes(dest_path);
+            if (attr != INVALID_FILE_ATTRIBUTES) {
+                (*ignored_count)++;
+                continue;
+            }
+
+            // Déplacement
+            if (!MoveFile(src_path, dest_path)) {
+                printf("Erreur lors du déplacement de %s vers %s\n", src_path, dest_path);
+            } else {
+                (*moved_count)++;
+            }
         }
-
-        const char* filename = find_data.cFileName;
-
-        if (strlen(filename) < 5 || !starts_with_5_digits(filename)) {
-            printf("Nom invalide : %s\n", filename);
-            continue;
-        }
-
-        // Extraire les 5 premiers caractères pour nom du sous-dossier
-        char subdir[6];
-        strncpy(subdir, filename, 5);
-        subdir[5] = '\0';
-
-        // Créer le chemin complet du sous-dossier
-        char full_subdir_path[MAX_PATH];
-        snprintf(full_subdir_path, MAX_PATH, "%s\\%s", dest_dir, subdir);
-
-        // Créer le sous-dossier s’il n’existe pas déjà
-        _mkdir(full_subdir_path);
-
-        // Construire le chemin source complet
-        char source_file_path[MAX_PATH];
-        snprintf(source_file_path, MAX_PATH, "%s\\%s", source_dir, filename);
-
-        // Construire le chemin destination complet
-        char dest_file_path[MAX_PATH];
-        snprintf(dest_file_path, MAX_PATH, "%s\\%s\\%s", dest_dir, subdir, filename);
-
-        // Déplacer le fichier
-        if (rename(source_file_path, dest_file_path) != 0) {
-            perror("Erreur lors du déplacement");
-        } else {
-            printf("Déplacé : %s -> %s\n", source_file_path, dest_file_path);
-        }
-
-    } while (FindNextFile(hFind, &find_data));
+    } while (FindNextFile(hFind, &findFileData));
 
     FindClose(hFind);
 }

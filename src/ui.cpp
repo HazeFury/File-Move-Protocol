@@ -2,99 +2,95 @@
 #include <FL/Fl_Window.H>
 #include <FL/Fl_Button.H>
 #include <FL/Fl_File_Chooser.H>
-#include <FL/fl_ask.H>      // pour fl_alert
-#include <filesystem>
-#include <regex>
+#include <FL/Fl_Input.H>
+#include <FL/Fl_Multiline_Output.H>
+
 #include <string>
-#include "ui.hpp"
-#include "core/file_move.h"
+#include <sstream>
+#include <iostream>
 
-namespace fs = std::filesystem;
-
-// Variables globales pour stocker les chemins
-static std::string source_path = "";
-static std::string destination_path = "";
-
-// --- UTILS ---
-
-// Vérifie si une chaîne commence par exactement 5 chiffres
-bool starts_with_5_digits(const std::string& filename) {
-    return std::regex_match(filename.substr(0, 5), std::regex("^[0-9]{5}$"));
+extern "C" {
+    #include "./core/file_scan.h"
+    #include "./core/file_move.h"
 }
 
-// Scan tous les fichiers du dossier source
-bool scan_files_in_source(const std::string& dir_path) {
-    if (dir_path.empty()) {
-        fl_alert("Aucun dossier source sélectionné.");
-        return false;
-    }
+Fl_Input* input_source = nullptr;
+Fl_Input* input_dest = nullptr;
+Fl_Multiline_Output* output = nullptr;
 
-    try {
-        for (const auto& entry : fs::directory_iterator(dir_path)) {
-            if (entry.is_regular_file()) {
-                std::string name = entry.path().filename().string();
-                if (name.size() < 5 || !starts_with_5_digits(name)) {
-                    fl_alert(("Nom de fichier invalide : " + name).c_str());
-                    return false;
-                }
-            }
-        }
-        fl_alert("Tous les fichiers sont valides !");
-        return true;
-    } catch (const std::exception& e) {
-        fl_alert(("Erreur lors du scan : " + std::string(e.what())).c_str());
-        return false;
+void show_alert(const std::string& message) {
+    fl_alert("%s", message.c_str());
+}
+
+void select_folder(Fl_Input* input_field) {
+    const char* selected = fl_dir_chooser("Choisir un dossier", nullptr, 1);
+    if (selected) {
+        input_field->value(selected);
     }
 }
 
-// --- CALLBACKS ---
-
-void on_select_source(Fl_Widget*, void*) {
-    const char* path = fl_dir_chooser("Choisir dossier source", "", 1);
-    if (path) {
-        source_path = path;
-    }
-}
-
-void on_select_destination(Fl_Widget*, void*) {
-    const char* path = fl_dir_chooser("Choisir dossier destination", "", 1);
-    if (path) {
-        destination_path = path;
-    }
-}
-
-void on_scan_files(Fl_Widget*, void*) {
-    scan_files_in_source(source_path);
-}
-
-void on_click_move(Fl_Widget*, void*) {
-    if (source_path.empty() || destination_path.empty()) {
-        fl_alert("Veuillez d'abord choisir les dossiers source et destination.");
+void on_scan_clicked(Fl_Widget*, void*) {
+    std::string source = input_source->value();
+    if (source.empty()) {
+        show_alert("Veuillez sélectionner un dossier source.");
         return;
     }
-    if (!scan_files_in_source(source_path)) {
-        return; // Ne pas déplacer si fichiers invalides
-    }
-    move_files(source_path.c_str(), destination_path.c_str());
-    fl_alert("Déplacement terminé !");
+
+    int total = 0, valid = 0, invalid = 0;
+    scan_files(source.c_str(), &total, &valid, &invalid);
+
+    std::ostringstream oss;
+    oss << "Analyse terminée :\n";
+    oss << "Fichiers détectés : " << total << "\n";
+    oss << "✔️ Fichiers valides : " << valid << " \n";
+    oss << "❌Fichiers invalides : " << invalid << "\n";
+
+    output->value(oss.str().c_str());
 }
 
-// --- GUI ---
+void on_move_clicked(Fl_Widget*, void*) {
+    std::string source = input_source->value();
+    std::string dest = input_dest->value();
+
+    if (source.empty() || dest.empty()) {
+        show_alert("Veuillez sélectionner les dossiers source et destination.");
+        return;
+    }
+
+    int moved = 0, ignored = 0;
+    move_files(source.c_str(), dest.c_str(), &moved, &ignored);
+
+    std::ostringstream oss;
+    oss << "Déplacement terminé :\n";
+    oss << "✔️ Fichiers déplacés : " << moved << "\n";
+    oss << "❌ Fichiers ignorés (existaient déjà) : " << ignored << "\n";
+
+    output->value(oss.str().c_str());
+}
 
 int create_main_window(int argc, char** argv) {
-    Fl_Window* win = new Fl_Window(500, 250, "FMP v0.3");
+    Fl_Window* win = new Fl_Window(600, 300, "FMP - File Move Protocol");
 
-    Fl_Button* btn_src = new Fl_Button(50, 30, 180, 30, "Dossier Source");
-    btn_src->callback(on_select_source);
+    input_source = new Fl_Input(160, 30, 300, 25, "Dossier source :");
+    Fl_Button* btn_browse_source = new Fl_Button(470, 30, 100, 25, "Parcourir");
+    btn_browse_source->callback([](Fl_Widget*, void*) {
+        select_folder(input_source);
+    });
 
-    Fl_Button* btn_dst = new Fl_Button(270, 30, 180, 30, "Dossier Destination");
-    btn_dst->callback(on_select_destination);
+    input_dest = new Fl_Input(160, 70, 300, 25, "Dossier destination :");
+    Fl_Button* btn_browse_dest = new Fl_Button(470, 70, 100, 25, "Parcourir");
+    btn_browse_dest->callback([](Fl_Widget*, void*) {
+        select_folder(input_dest);
+    });
 
-    Fl_Button* btn_scan = new Fl_Button(50, 80, 180, 30, "Scanner les fichiers");
-    btn_scan->callback(on_scan_files);
+    Fl_Button* btn_scan = new Fl_Button(160, 110, 150, 30, "Analyser");
+    btn_scan->callback(on_scan_clicked);
 
-    Fl_Button* btn_move = new Fl_Button(270, 80, 180, 30, "Déplacer");
-    btn_move->callback(on_click_move);
+    Fl_Button* btn_move = new Fl_Button(320, 110, 150, 30, "Déplacer les fichiers");
+    btn_move->callback(on_move_clicked);
+
+    output = new Fl_Multiline_Output(160, 160, 300, 100, "Résultats :");
+    output->wrap(1);
 
     win->end();
     win->show(argc, argv);
