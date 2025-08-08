@@ -4,13 +4,17 @@
 TARGET = FMP
 
 # Fichier source
-SRC = main.cxx
+SRC = $(wildcard src/*.cxx src/*.cpp src/core/*.c)
+
 
 # Dossier de build
 BUILD_DIR = build
 
 # Compilateur
 CXX = g++
+
+# Fichier ressource (icône)
+RES = src/assets/fmp_res.o
 
 # Par défaut, on suppose Linux
 CXXFLAGS = -I/usr/include
@@ -20,6 +24,7 @@ EXT =
 # Si on est sous Windows, OS est défini à Windows_NT par cmd.exe ou PowerShell
 ifdef OS
 ifeq ($(OS), Windows_NT)
+
     FLTK_DIR = C:/libs/fltk
     FLTK_BUILD = $(FLTK_DIR)/build
     LIB_DIR = $(FLTK_BUILD)/lib
@@ -32,7 +37,8 @@ endif
 
 # Cible principale
 all: $(BUILD_DIR)
-	$(CXX) $(SRC) -o $(BUILD_DIR)/$(TARGET)$(EXT) $(CXXFLAGS) $(LDFLAGS)
+	$(CXX) $(SRC) $(RES) -o $(BUILD_DIR)/$(TARGET)$(EXT) $(CXXFLAGS) $(LDFLAGS)
+
 
 # Création du dossier de build s'il n'existe pas
 $(BUILD_DIR):
@@ -45,3 +51,4 @@ ifeq ($(OS), Windows_NT)
 else
 	rm -f $(BUILD_DIR)/$(TARGET)$(EXT)
 endif
+
